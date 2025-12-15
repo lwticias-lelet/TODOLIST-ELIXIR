@@ -1,18 +1,18 @@
 defmodule ElixirTodoListWeb.TodoLive do
   use ElixirTodoListWeb, :live_view
 
-  # mount/3 é chamado quando a página é carregada, define o estado inicial
+  alias ElixirTodoList.Task
+  alias ElixirTodoList.Repo
+
   @impl true
   def mount(_params, _session, socket) do
-    tasks = [
-      %{id: 1, title: "Comprar leite", completed: false},
-      %{id: 2, title: "Aprender LiveView", completed: true}
-    ]
+    tasks = Repo.all(Task) |> Enum.reverse()  # traz todas as tarefas, mais recentes primeiro
 
-    socket = assign(socket,
-      tasks: tasks,
-      new_task_title: "" # campo de entrada começa vazio
-    )
+    socket =
+      assign(socket,
+        tasks: tasks,
+        new_task_title: ""
+      )
 
     {:ok, socket}
   end
@@ -20,28 +20,46 @@ defmodule ElixirTodoListWeb.TodoLive do
   # Captura o evento de digitação no campo
   @impl true
   def handle_event("update_form", %{"title" => new_title}, socket) do
-    socket = assign(socket, new_task_title: new_title)
-    {:noreply, socket}  # retorna o socket atualizado sem recarregar a página
+    {:noreply, assign(socket, new_task_title: new_title)}
   end
 
-  # Captura o envio do formulário e adiciona a nova tarefa
+  # Adiciona uma nova tarefa no banco
   @impl true
   def handle_event("save_task", %{"title" => title}, socket) do
-    # Cria uma nova tarefa com ID incremental
-    new_task = %{
-      id: Enum.count(socket.assigns.tasks) + 1,
-      title: title,
-      completed: false
-    }
+    if title != "" do
+      %Task{}
+      |> Task.changeset(%{title: title})
+      |> Repo.insert()
 
-    # Adiciona a nova tarefa no topo da lista
-    tasks = [new_task | socket.assigns.tasks]
-
-    # Atualiza o estado do socket, limpando o campo de input
-    {:noreply, assign(socket, tasks: tasks, new_task_title: "")}
+      tasks = Repo.all(Task) |> Enum.reverse()
+      {:noreply, assign(socket, tasks: tasks, new_task_title: "")}
+    else
+      {:noreply, socket}
+    end
   end
 
-  # render/1 é o "desenhista" da interface
+  # Marca/desmarca uma tarefa como concluída
+  @impl true
+  def handle_event("toggle_task", %{"id" => id}, socket) do
+    task = Repo.get!(Task, id)
+    task
+    |> Task.changeset(%{completed: !task.completed})
+    |> Repo.update()
+
+    tasks = Repo.all(Task) |> Enum.reverse()
+    {:noreply, assign(socket, tasks: tasks)}
+  end
+
+  # Deleta uma tarefa
+  @impl true
+  def handle_event("delete_task", %{"id" => id}, socket) do
+    task = Repo.get!(Task, id)
+    Repo.delete(task)
+
+    tasks = Repo.all(Task) |> Enum.reverse()
+    {:noreply, assign(socket, tasks: tasks)}
+  end
+
   @impl true
   def render(assigns) do
     ~H"""
@@ -50,7 +68,6 @@ defmodule ElixirTodoListWeb.TodoLive do
         Minha Lista de Tarefas
       </h1>
 
-      <% # --- FORMULÁRIO DE ENTRADA --- %>
       <form phx-submit="save_task" phx-change="update_form" class="flex gap-2 mb-6">
         <input
           type="text"
@@ -65,13 +82,27 @@ defmodule ElixirTodoListWeb.TodoLive do
         </button>
       </form>
 
-      <% # --- LISTA DE TAREFAS --- %>
       <div class="mt-8">
         <ul id="task-list">
           <li :for={task <- @tasks} class="flex justify-between items-center p-3 border-b">
-            <span class={if task.completed, do: "line-through text-gray-500", else: "text-gray-900"}>
-              <%= task.title %>
-            </span>
+            <div class="flex items-center gap-2">
+              <input
+                type="checkbox"
+                phx-click="toggle_task"
+                phx-value-id={task.id}
+                checked={task.completed}
+              />
+              <span class={if task.completed, do: "line-through text-gray-500", else: "text-gray-900"}>
+                <%= task.title %>
+              </span>
+            </div>
+            <button
+              phx-click="delete_task"
+              phx-value-id={task.id}
+              class="text-red-500 hover:text-red-700"
+            >
+              Deletar
+            </button>
           </li>
         </ul>
       </div>
