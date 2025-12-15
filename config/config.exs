@@ -10,6 +10,14 @@ import Config
 config :elixir_todo_list,
   generators: [timestamp_type: :utc_datetime]
 
+# --- Configuração do Repo (Ecto / SQLite) ---
+config :elixir_todo_list, ElixirTodoList.Repo,
+  database: "elixir_todo_list.db",
+  priv: "priv/repo"
+
+config :elixir_todo_list, ecto_repos: [ElixirTodoList.Repo]
+# ---------------------------------------------
+
 # Configure the endpoint
 config :elixir_todo_list, ElixirTodoListWeb.Endpoint,
   url: [host: "localhost"],
